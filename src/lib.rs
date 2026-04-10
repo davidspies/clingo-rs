@@ -2480,7 +2480,7 @@ pub fn control(arguments: std::vec::Vec<String>) -> Result<Control, ClingoError>
 /// or [`ErrorCode::Runtime`] if argument parsing fails
 pub fn control_with_context<C: ControlCtx>(
     arguments: Vec<String>,
-    mut context: C,
+    context: C,
 ) -> Result<GenericControl<C>, ClingoError> {
     let mut args = vec![];
     for arg in arguments {
@@ -2493,9 +2493,12 @@ pub fn control_with_context<C: ControlCtx>(
         .map(|arg| arg.as_ptr())
         .collect::<Vec<*const c_char>>();
 
-    let mut ctl_ptr = std::ptr::null_mut();
+    // Box the context BEFORE taking the logger pointer, so the pointer
+    // points into heap memory that won't move when the context is stored.
+    let mut context = Box::new(context);
     let (logger, message_limit) = context.logger();
 
+    let mut ctl_ptr = std::ptr::null_mut();
     if !unsafe {
         clingo_control_new(
             c_args.as_ptr(),
@@ -2515,7 +2518,7 @@ pub fn control_with_context<C: ControlCtx>(
             let mut control = GenericControl {
                 ctl,
                 copied: false,
-                context: Box::new(context),
+                context,
             };
             control.register_observer()?;
             control.register_propagator()?;
